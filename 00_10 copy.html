@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>物理引擎互動</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js"></script>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+        }
+        #info {
+            position: fixed;
+            top: 10px;
+            left: 10px;
+            color: white;
+            font-size: 16px;
+            font-family: Arial, sans-serif;
+            background-color: rgba(0, 0, 0, 0.5);
+            padding: 10px;
+            border-radius: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div id="info">物體數量: 0 | FPS: 0</div>
+    <script>
+        const Engine = Matter.Engine,
+            Render = Matter.Render,
+            Runner = Matter.Runner,
+            Bodies = Matter.Bodies,
+            Composite = Matter.Composite,
+            Mouse = Matter.Mouse,
+            Events = Matter.Events,
+            Constraint = Matter.Constraint,
+            Body = Matter.Body;
+
+        const engine = Engine.create();
+        engine.gravity.y = 0; // 關閉重力
+        const world = engine.world;
+
+        const render = Render.create({
+            element: document.body,
+            engine: engine,
+            options: {
+                width: window.innerWidth,
+                height: window.innerHeight,
+                wireframes: false,
+                background: '#000'
+            }
+        });
+
+        Render.run(render);
+        const runner = Runner.create();
+        Runner.run(runner, engine);
+
+        let isMouseDown = false;
+        let createInterval;
+        let lastTime = performance.now();
+        let frames = 0;
+        let fps = 0;
+        let mouseX, mouseY;
+        let selectedBody = null;
+        let constraint = null;
+
+        // 產生隨機顏色
+        function getRandomColor() {
+            const hue = Math.random() * 360;
+            return `hsl(${hue}, 100%, 50%)`;
+        }
+
+        // 判斷物體形狀
+        function getBodyShape(body) {
+            if (body.vertices.length === 4) return 'rectangle';
+            if (body.vertices.length === 8) return 'circle';
+            return 'polygon';
+        }
+
+        // 產生隨機形狀
+        function createRandomBody(x, y) {
+            const size = 20 + Math.random() * 30;
+            const shapes = [
+                () => Bodies.rectangle(x, y, size, size, {
+                    render: { fillStyle: getRandomColor() },
+                    shape: 'rectangle',
+                    frictionAir: 0.05
+                }),
+                () => Bodies.circle(x, y, size/2, {
+                    render: { fillStyle: getRandomColor() },
+                    shape: 'circle',
+                    frictionAir: 0.05
+                }),
+                () => Bodies.polygon(x, y, Math.floor(3 + Math.random() * 5), size/2, {
+                    render: { fillStyle: getRandomColor() },
+                    shape: 'polygon',
+                    frictionAir: 0.05
+                })
+            ];
+            return shapes[Math.floor(Math.random() * shapes.length)]();
+        }
+
+        // 應用力的函數
+        function applyForces() {
+            const bodies = Composite.allBodies(world);
+            
+            // 處理邊界環繞
+            bodies.forEach(body => {
+                if (body.isStatic) return;
+
+                // 檢查並調整 X 軸位置
+                if (body.position.x < -50) {
+                    Body.setPosition(body, {
+                        x: window.innerWidth + 50,
+                        y: body.position.y
+                    });
+                } else if (body.position.x > window.innerWidth + 50) {
+                    Body.setPosition(body, {
+                        x: -50,
+                        y: body.position.y
+                    });
+                }
+
+                // 檢查並調整 Y 軸位置
+                if (body.position.y < -50) {
+                    Body.setPosition(body, {
+                        x: body.position.x,
+                        y: window.innerHeight + 50
+                    });
+                } else if (body.position.y > window.innerHeight + 50) {
+                    Body.setPosition(body, {
+                        x: body.position.x,
+                        y: -50
+                    });
+                }
+            });
+            
+            // 處理選中物體的吸引/排斥
+            if (selectedBody) {
+                const selectedColor = selectedBody.render.fillStyle;
+                const selectedShape = getBodyShape(selectedBody);
+
+                bodies.forEach(body => {
+                    if (body === selectedBody || body.isStatic) return;
+
+                    const dx = body.position.x - selectedBody.position.x;
+                    const dy = body.position.y - selectedBody.position.y;
+                    const distance = Math.sqrt(dx * dx + dy * dy);
+                    
+                    if (distance < 200) {
+                        const force = 0.3 / (distance * distance);
+                        const sameColor = body.render.fillStyle === selectedColor;
+                        const sameShape = getBodyShape(body) === selectedShape;
+
+                        if (sameColor || sameShape) {
+                            // 吸引力
+                            Body.applyForce(body, body.position, {
+                                x: -dx * force,
+                                y: -dy * force
+                            });
+                        } else {
+                            // 排斥力
+                            Body.applyForce(body, body.position, {
+                                x: dx * force * 2,
+                                y: dy * force * 2
+                            });
+                        }
+                    }
+                });
+            } else {
+                // 當沒有選中物體時，所有物體之間的自然排斥
+                for (let i = 0; i < bodies.length; i++) {
+                    for (let j = i + 1; j < bodies.length; j++) {
+                        const bodyA = bodies[i];
+                        const bodyB = bodies[j];
+                        
+                        if (bodyA.isStatic || bodyB.isStatic) continue;
+
+                        const dx = bodyB.position.x - bodyA.position.x;
+                        const dy = bodyB.position.y - bodyA.position.y;
+                        const distance = Math.sqrt(dx * dx + dy * dy);
+
+                        if (distance < 100) {
+                            const force = 0.1 / (distance * distance);
+                            
+                            Body.applyForce(bodyA, bodyA.position, {
+                                x: -dx * force,
+                                y: -dy * force
+                            });
+                            Body.applyForce(bodyB, bodyB.position, {
+                                x: dx * force,
+                                y: dy * force
+                            });
+                        }
+                    }
+                }
+            }
+        }
+
+        // 更新事件
+        Events.on(engine, 'beforeUpdate', function() {
+            applyForces();
+        });
+
+        // 滑鼠事件
+        document.addEventListener('mousedown', (e) => {
+            mouseX = e.clientX;
+            mouseY = e.clientY;
+            
+            const bodies = Composite.allBodies(world);
+            const clickedBody = bodies.find(body => {
+                if (body.isStatic) return false;
+                const bounds = body.bounds;
+                return mouseX >= bounds.min.x && mouseX <= bounds.max.x &&
+                       mouseY >= bounds.min.y && mouseY <= bounds.max.y;
+            });
+
+            if (clickedBody) {
+                selectedBody = clickedBody;
+                constraint = Constraint.create({
+                    pointA: { x: mouseX, y: mouseY },
+                    bodyB: selectedBody,
+                    stiffness: 0.1,
+                    render: {
+                        visible: true,
+                        lineWidth: 2,
+                        strokeStyle: '#ffffff'
+                    }
+                });
+                Composite.add(world, constraint);
+            } else {
+                isMouseDown = true;
+                createInterval = setInterval(() => {
+                    const body = createRandomBody(mouseX, mouseY);
+                    Composite.add(world, body);
+                }, 100);
+            }
+        });
+
+        document.addEventListener('mousemove', (e) => {
+            mouseX = e.clientX;
+            mouseY = e.clientY;
+            if (constraint) {
+                constraint.pointA = { x: mouseX, y: mouseY };
+            }
+        });
+
+        document.addEventListener('mouseup', () => {
+            isMouseDown = false;
+            clearInterval(createInterval);
+            
+            if (constraint) {
+                Composite.remove(world, constraint);
+                constraint = null;
+                selectedBody = null;
+            }
+        });
+
+        // 更新資訊
+        setInterval(() => {
+            const currentTime = performance.now();
+            frames++;
+            
+            if (currentTime - lastTime >= 1000) {
+                fps = frames;
+                frames = 0;
+                lastTime = currentTime;
+            }
+
+            const bodyCount = Composite.allBodies(world).length;
+            document.getElementById('info').textContent = 
+                `物體數量: ${bodyCount} | FPS: ${fps}`;
+        }, 100);
+    </script>
+</body>
+</html>

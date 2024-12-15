@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>進階版球球碰撞遊戲</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.18.0/matter.min.js"></script>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #2c3e50;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            font-family: Arial, sans-serif;
+        }
+        #game-container {
+            position: relative;
+            width: 800px;
+            height: 600px;
+        }
+        #canvas {
+            background-color: #34495e;
+        }
+        #start-btn {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            padding: 15px 30px;
+            font-size: 24px;
+            background-color: #3498db;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        #timer, #score {
+            position: absolute;
+            color: white;
+            font-size: 24px;
+        }
+        #timer {
+            top: 20px;
+            left: 20px;
+        }
+        #score {
+            top: 20px;
+            right: 20px;
+        }
+        #game-over {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: white;
+            font-size: 32px;
+            text-align: center;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div id="game-container">
+        <canvas id="canvas"></canvas>
+        <button id="start-btn">開始</button>
+        <div id="timer"></div>
+        <div id="score"></div>
+        <div id="game-over"></div>
+    </div>
+
+    <script>
+        const engine = Matter.Engine.create();
+        const render = Matter.Render.create({
+            canvas: document.querySelector('#canvas'),
+            engine: engine,
+            options: {
+                width: 800,
+                height: 600,
+                wireframes: false
+            }
+        });
+
+        // 設定重力
+        engine.world.gravity.y = 0.5;
+
+        const startBtn = document.getElementById('start-btn');
+        const timerDisplay = document.getElementById('timer');
+        const scoreDisplay = document.getElementById('score');
+        const gameOverDisplay = document.getElementById('game-over');
+        
+        let timeLeft = 20; // 減少時間
+        let currentScore = 0;
+        let gameTimer;
+        let blueBall, redBall;
+        let obstacles = [];
+        let isGameRunning = false;
+        let redBallMovementInterval;
+
+        // 建立邊界
+        const walls = [
+            Matter.Bodies.rectangle(400, 0, 800, 20, { 
+                isStatic: true,
+                render: { fillStyle: '#2c3e50' }
+            }),
+            Matter.Bodies.rectangle(400, 600, 800, 20, { 
+                isStatic: true,
+                render: { fillStyle: '#2c3e50' }
+            }),
+            Matter.Bodies.rectangle(0, 300, 20, 600, { 
+                isStatic: true,
+                render: { fillStyle: '#2c3e50' }
+            }),
+            Matter.Bodies.rectangle(800, 300, 20, 600, { 
+                isStatic: true,
+                render: { fillStyle: '#2c3e50' }
+            })
+        ];
+
+        Matter.World.add(engine.world, walls);
+
+        function createObstacles() {
+            // 創建隨機障礙物
+            for (let i = 0; i < 8; i++) {
+                const x = Math.random() * 600 + 100;
+                const y = Math.random() * 400 + 100;
+                const width = Math.random() * 100 + 50;
+                const height = Math.random() * 100 + 50;
+                const angle = Math.random() * Math.PI;
+                
+                const obstacle = Matter.Bodies.rectangle(x, y, width, height, {
+                    isStatic: true,
+                    angle: angle,
+                    render: {
+                        fillStyle: '#95a5a6'
+                    }
+                });
+                
+                obstacles.push(obstacle);
+            }
+            Matter.World.add(engine.world, obstacles);
+        }
+
+        function createBalls() {
+            // 縮小球的大小
+            blueBall = Matter.Bodies.circle(100, 300, 15, {
+                render: { fillStyle: '#3498db' },
+                friction: 0.1,
+                restitution: 0.8
+            });
+
+            redBall = Matter.Bodies.circle(700, 300, 15, {
+                render: { fillStyle: '#e74c3c' },
+                friction: 0.1,
+                restitution: 0.8
+            });
+
+            Matter.World.add(engine.world, [blueBall, redBall]);
+        }
+
+        function moveRedBall() {
+            // 讓紅球逃離藍球
+            redBallMovementInterval = setInterval(() => {
+                if (!isGameRunning) return;
+
+                const dx = redBall.position.x - blueBall.position.x;
+                const dy = redBall.position.y - blueBall.position.y;
+                const distance = Math.sqrt(dx * dx + dy * dy);
+
+                if (distance < 200) {
+                    // 在藍球靠近時逃跑
+                    const force = 0.003;
+                    Matter.Body.applyForce(redBall, redBall.position, {
+                        x: (dx / distance) * force,
+                        y: (dy / distance) * force
+                    });
+                } else {
+                    // 隨機移動
+                    Matter.Body.applyForce(redBall, redBall.position, {
+                        x: (Math.random() - 0.5) * 0.002,
+                        y: (Math.random() - 0.5) * 0.002
+                    });
+                }
+            }, 100);
+        }
+
+        function startGame() {
+            startBtn.style.display = 'none';
+            gameOverDisplay.style.display = 'none';
+            timeLeft = 20;
+            currentScore = 0;
+            isGameRunning = true;
+
+            // 清除之前的障礙物
+            obstacles.forEach(obstacle => Matter.World.remove(engine.world, obstacle));
+            obstacles = [];
+
+            createObstacles();
+            createBalls();
+            moveRedBall();
+            updateScore();
+
+            gameTimer = setInterval(() => {
+                timeLeft--;
+                timerDisplay.textContent = `時間: ${timeLeft}秒`;
+                
+                if (timeLeft <= 0) {
+                    endGame(false);
+                }
+            }, 1000);
+
+            Matter.Events.on(engine, 'collisionStart', (event) => {
+                if (!isGameRunning) return;
+                
+                event.pairs.forEach((pair) => {
+                    if ((pair.bodyA === blueBall && pair.bodyB === redBall) ||
+                        (pair.bodyA === redBall && pair.bodyB === blueBall)) {
+                        endGame(true);
+                    }
+                });
+            });
+        }
+
+        function updateScore() {
+            scoreDisplay.textContent = `分數: ${currentScore}`;
+        }
+
+        function endGame(collision) {
+            isGameRunning = false;
+            clearInterval(gameTimer);
+            clearInterval(redBallMovementInterval);
+            
+            const finalScore = collision ? timeLeft * 10 + currentScore : currentScore;
+            const result = collision ? '你贏了！' : '時間到！';
+            
+            Matter.World.remove(engine.world, [blueBall, redBall]);
+            obstacles.forEach(obstacle => Matter.World.remove(engine.world, obstacle));
+            
+            gameOverDisplay.innerHTML = `GAME OVER<br>${result}<br>最終分數: ${finalScore}`;
+            gameOverDisplay.style.display = 'block';
+
+            setTimeout(() => {
+                gameOverDisplay.style.display = 'none';
+                startBtn.style.display = 'block';
+                timerDisplay.textContent = '';
+                scoreDisplay.textContent = '';
+            }, 3000);
+        }
+
+        startBtn.addEventListener('click', startGame);
+
+        Matter.Engine.run(engine);
+        Matter.Render.run(render);
+
+        // 控制藍球移動
+        document.addEventListener('keydown', (event) => {
+            if (!isGameRunning) return;
+            
+            const force = 0.004;
+            switch(event.key) {
+                case 'ArrowUp':
+                    Matter.Body.applyForce(blueBall, blueBall.position, {x: 0, y: -force});
+                    break;
+                case 'ArrowDown':
+                    Matter.Body.applyForce(blueBall, blueBall.position, {x: 0, y: force});
+                    break;
+                case 'ArrowLeft':
+                    Matter.Body.applyForce(blueBall, blueBall.position, {x: -force, y: 0});
+                    break;
+                case 'ArrowRight':
+                    Matter.Body.applyForce(blueBall, blueBall.position, {x: force, y: 0});
+                    break;
+            }
+        });
+    </script>
+</body>
+</html>

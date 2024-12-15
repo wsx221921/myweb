@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D 第一人稱射擊遊戲</title>
+    <style>
+        body, html {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            background-color: #000;
+        }
+        #instructions {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 24px;
+            text-align: center;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <div id="instructions">點擊進入遊戲</div>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/PointerLockControls.js"></script>
+    <script>
+        let camera, scene, renderer, controls;
+        let bullets = [];
+        let moveForward = false, moveBackward = false, moveLeft = false, moveRight = false;
+        const objects = [];
+
+        init();
+        animate();
+
+        function init() {
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 1, 1000);
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0xaaaaaa);
+
+            const light = new THREE.HemisphereLight(0xffffff, 0x444444);
+            light.position.set(0, 200, 0);
+            scene.add(light);
+
+            const floorGeometry = new THREE.PlaneGeometry(200, 200);
+            const floorMaterial = new THREE.MeshBasicMaterial({ color: 0x999999 });
+            const floor = new THREE.Mesh(floorGeometry, floorMaterial);
+            floor.rotation.x = -Math.PI / 2;
+            scene.add(floor);
+
+            const gunGeometry = new THREE.BoxGeometry(0.2, 0.1, 0.5);
+            const gunMaterial = new THREE.MeshBasicMaterial({ color: 0x000000 });
+            const gun = new THREE.Mesh(gunGeometry, gunMaterial);
+            gun.position.set(0, -0.2, -1);
+            camera.add(gun);
+
+            controls = new THREE.PointerLockControls(camera, document.body);
+            scene.add(controls.getObject());
+
+            const onKeyDown = function (event) {
+                switch (event.code) {
+                    case 'ArrowUp':
+                    case 'KeyW': moveForward = true; break;
+                    case 'ArrowLeft':
+                    case 'KeyA': moveLeft = true; break;
+                    case 'ArrowDown':
+                    case 'KeyS': moveBackward = true; break;
+                    case 'ArrowRight':
+                    case 'KeyD': moveRight = true; break;
+                }
+            };
+
+            const onKeyUp = function (event) {
+                switch (event.code) {
+                    case 'ArrowUp':
+                    case 'KeyW': moveForward = false; break;
+                    case 'ArrowLeft':
+                    case 'KeyA': moveLeft = false; break;
+                    case 'ArrowDown':
+                    case 'KeyS': moveBackward = false; break;
+                    case 'ArrowRight':
+                    case 'KeyD': moveRight = false; break;
+                }
+            };
+
+            document.addEventListener('keydown', onKeyDown);
+            document.addEventListener('keyup', onKeyUp);
+
+            document.addEventListener('click', () => {
+                if (controls.isLocked) {
+                    shoot();
+                } else {
+                    controls.lock();
+                }
+            });
+
+            renderer = new THREE.WebGLRenderer();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            document.body.appendChild(renderer.domElement);
+
+            const instructions = document.getElementById('instructions');
+            controls.addEventListener('lock', () => {
+                instructions.style.display = 'none';
+            });
+            controls.addEventListener('unlock', () => {
+                instructions.style.display = '';
+            });
+        }
+
+        function shoot() {
+            const bullet = new THREE.Mesh(new THREE.SphereGeometry(0.05, 8, 8), new THREE.MeshBasicMaterial({ color: 0xffff00 }));
+            bullet.position.set(camera.position.x, camera.position.y, camera.position.z);
+            bullet.velocity = new THREE.Vector3(
+                -Math.sin(camera.rotation.y),
+                0,
+                -Math.cos(camera.rotation.y)
+            );
+            bullets.push(bullet);
+            scene.add(bullet);
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+
+            if (controls.isLocked) {
+                const delta = 0.1;
+                if (moveForward) controls.moveForward(delta);
+                if (moveBackward) controls.moveForward(-delta);
+                if (moveLeft) controls.moveRight(-delta);
+                if (moveRight) controls.moveRight(delta);
+
+                bullets.forEach((bullet, index) => {
+                    bullet.position.add(bullet.velocity);
+                    if (bullet.position.length() > 100) {
+                        scene.remove(bullet);
+                        bullets.splice(index, 1);
+                    }
+                });
+            }
+
+            renderer.render(scene, camera);
+        }
+    </script>
+</body>
+</html>

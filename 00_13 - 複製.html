@@ -1,0 +1,31 @@
+def generate_exam(content):
+    # 計算 * 的數量
+    asterisk_count = content.count('*')
+    
+    # 分配一半給選擇題，一半給填充題
+    choice_count = asterisk_count // 2
+    fill_in_the_blank_count = asterisk_count - choice_count
+    
+    # 生成考題
+    choice_questions = []
+    fill_in_the_blank_questions = []
+    
+    for i in range(choice_count):
+        choice_questions.append(f"選擇題 {i+1}: 請根據以下內容選擇正確答案。")
+    
+    for i in range(fill_in_the_blank_count):
+        fill_in_the_blank_questions.append(f"填充題 {i+1}: 請填入正確的答案。")
+    
+    return choice_questions, fill_in_the_blank_questions
+
+# 範例使用
+content = "這是一個範例文本，包含一些*需要出題的地方*。"
+choice_questions, fill_in_the_blank_questions = generate_exam(content)
+
+print("選擇題:")
+for question in choice_questions:
+    print(question)
+
+print("\n填充題:")
+for question in fill_in_the_blank_questions:
+    print(question)

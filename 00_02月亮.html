@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>地球、月亮與星空</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background: #000;
+            cursor: none;
+        }
+        
+        .star {
+            position: absolute;
+            color: white;
+            opacity: 0;
+            transition: opacity 1s;
+        }
+        
+        #moon {
+            position: fixed;
+            font-size: 200px;
+            pointer-events: none;
+            transition: all 0.1s ease;
+        }
+
+        #earth {
+            position: fixed;
+            font-size: 300px;
+            left: 50%;
+            top: 50%;
+            transform: translate(-50%, -50%);
+            pointer-events: none;
+            z-index: 500;
+        }
+    </style>
+</head>
+<body>
+    <div id="earth"></div>
+    <div id="moon"></div>
+
+    <script>
+        const moonPhases = ['🌑', '🌒', '🌓', '🌔', '🌕', '🌖', '🌗', '🌘'];
+        const earthPhases = ['🌍', '🌎', '🌏'];
+        let currentEarthPhase = 0;
+        const moon = document.getElementById('moon');
+        const earth = document.getElementById('earth');
+        let lastX = 0;
+
+        function getMoonPhase(mouseX, mouseY) {
+            const centerX = window.innerWidth / 2;
+            const centerY = window.innerHeight / 2;
+            
+            // 計算月亮相對於地球的角度
+            let angle = Math.atan2(mouseY - centerY, mouseX - centerX);
+            angle = angle * (180 / Math.PI);
+            if (angle < 0) angle += 360;
+            
+            // 將角度轉換為月相索引
+            return Math.floor(((angle + 22.5) % 360) / 45);
+        }
+
+        // 滑鼠追蹤
+        document.addEventListener('mousemove', (e) => {
+            if (e.clientX > lastX) {
+                moon.style.zIndex = "100";
+            } else {
+                moon.style.zIndex = "1000";
+            }
+            lastX = e.clientX;
+
+            // 修正月亮位置，確保月亮中心在鼠標位置
+            moon.style.left = (e.clientX - 100) + 'px';
+            moon.style.top = (e.clientY - 100) + 'px';
+
+            // 更新月相
+            const phaseIndex = getMoonPhase(e.clientX, e.clientY);
+            moon.textContent = moonPhases[phaseIndex];
+        });
+
+        // 地球動畫
+        setInterval(() => {
+            earth.textContent = earthPhases[currentEarthPhase];
+            currentEarthPhase = (currentEarthPhase + 1) % earthPhases.length;
+        }, 200);
+
+        // 產生星星
+        function createStar() {
+            const star = document.createElement('div');
+            star.className = 'star';
+            star.style.left = Math.random() * window.innerWidth + 'px';
+            star.style.top = Math.random() * window.innerHeight + 'px';
+            star.textContent = '⭐';
+            star.style.fontSize = (Math.random() * 15 + 5) + 'px';
+            document.body.appendChild(star);
+            
+            setInterval(() => {
+                star.style.opacity = Math.random();
+            }, Math.random() * 3000 + 1000);
+            
+            return star;
+        }
+
+        // 初始化星空
+        for (let i = 0; i < 100; i++) {
+            createStar();
+        }
+
+        // 視窗調整大小時重新產生星星
+        window.addEventListener('resize', () => {
+            const stars = document.querySelectorAll('.star');
+            stars.forEach(star => star.remove());
+            for (let i = 0; i < 100; i++) {
+                createStar();
+            }
+        });
+    </script>
+</body>
+</html>

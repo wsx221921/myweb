@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <title>Emoji 與顏文字列表</title>
+    <style>
+        .container {
+            padding: 20px;
+        }
+
+        .section-title {
+            font-size: 24px;
+            margin: 20px 0;
+            padding: 10px;
+            background-color: #f0f0f0;
+            border-radius: 5px;
+        }
+
+        .category-title {
+            font-size: 18px;
+            margin: 15px 0;
+            padding: 5px 10px;
+            background-color: #eee;
+            border-radius: 5px;
+            color: #333;
+        }
+
+        .emoji-container, .kaomoji-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+            gap: 10px;
+            padding: 20px;
+        }
+        
+        .emoji-item, .kaomoji-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-align: center;
+            position: relative;
+            overflow: hidden;
+            background-color: white;
+        }
+        
+        .emoji-item:hover, .kaomoji-item:hover {
+            background-color: #f0f0f0;
+            transform: scale(1.1);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+            z-index: 1;
+        }
+
+        .emoji-item:hover .emoji {
+            animation: bounce 0.5s infinite alternate;
+        }
+
+        .kaomoji-item:hover .kaomoji {
+            animation: wave 0.5s infinite alternate;
+        }
+        
+        .emoji {
+            font-size: 2em;
+            transition: all 0.3s ease;
+        }
+
+        .kaomoji {
+            font-size: 1.2em;
+            word-break: keep-all;
+            white-space: nowrap;
+            transition: all 0.3s ease;
+        }
+        
+        .code {
+            font-size: 0.8em;
+            color: #666;
+            margin-top: 5px;
+        }
+
+        .toast {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            padding: 10px 20px;
+            border-radius: 5px;
+            color: white;
+            font-size: 16px;
+            opacity: 0;
+            transition: opacity 0.3s;
+            z-index: 1000;
+        }
+
+        .toast.success {
+            background-color: #4CAF50;
+        }
+
+        .toast.error {
+            background-color: #f44336;
+        }
+
+        .toast.show {
+            opacity: 1;
+        }
+
+        @keyframes bounce {
+            from {
+                transform: translateY(0);
+            }
+            to {
+                transform: translateY(-10px);
+            }
+        }
+
+        @keyframes wave {
+            from {
+                transform: rotate(-5deg);
+            }
+            to {
+                transform: rotate(5deg);
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2 class="section-title">顏文字</h2>
+        <div id="kaomojiContainer"></div>
+        
+        <h2 class="section-title">Emoji</h2>
+        <div class="emoji-container" id="emojiContainer"></div>
+    </div>
+
+    <div id="toast" class="toast"></div>
+
+    <script>
+        const kaomojis = {
+            "開心": [
+                '(◍•ᴗ•◍)', '(●ˊωˋ●)', '(*´∀`*)', '(｡♥‿♥｡)', 
+                '(◕‿◕✿)', '(◠‿◠)', '(＾▽＾)', '(✿◡‿◡)',
+                '(◕ᴗ◕✿)', 'ヽ(o＾▽＾o)ノ', '٩(◕‿◕｡)۶',
+                '(｡◕‿◕｡)', '(●´ω｀●)', '(◕‿◕)', '(´｡• ᵕ •｡`)'
+            ],
+            "愛心": [
+                '(♡˙︶˙♡)', '(◕‿◕)♡', '(✿ ♥‿♥)', '(｡♥‿♥｡)',
+                '(◍•ᴗ•◍)❤', '♡(◡‿◡✿)', '(◕‿◕)♡', '(✿ ♥‿♥)',
+                '(｡♥‿♥｡)', '(♥ω♥*)', '(◕દ◕)', '(｡♥‿♥｡)'
+            ],
+            "驚訝": [
+                '(⊙_⊙)', '(○o○)', '(ﾟДﾟ;)', '(´･_･`)',
+                '(°ロ°)', '(⊙＿⊙)', '(◎_◎;)', '(ʘᗩʘ)'
+            ],
+            "哭泣": [
+                '(╥﹏╥)', '(ಥ﹏ಥ)', '(╯︵╰,)', '(っ˘̩╭╮˘̩)っ',
+                '(个_个)', '(╥_╥)', '(ᗒᗩᗕ)', '(;´Д`)'
+            ],
+            "動物": [
+                '(=^･ω･^=)', '(=^･ｪ･^=)', 'ʕ•ᴥ•ʔ', '(･◡･≡･◡･)',
+                '(=^･^=)', '(○｀ω´○)', '(●￣(ｴ)￣●)', '(^◕ᴥ◕^)'
+            ],
+            "其他": [
+                '¯\\_(ツ)_/¯', '(づ｡◕‿‿◕｡)づ', '(ノ^_^)ノ', 
+                '(づ￣ ³￣)づ', '(っ˘ω˘ς )', '(｀･ω･´)ゞ'
+            ]
+        };
+
+        const emojiRanges = [
+            [0x1F300, 0x1F9FF],
+            [0x1F600, 0x1F64F],
+            [0x1F680, 0x1F6FF],
+            [0x2600, 0x26FF],
+            [0x2700, 0x27BF],
+            [0x1F900, 0x1F9FF],
+            [0x1FA70, 0x1FAFF]
+        ];
+
+        function showToast(message, isSuccess = true) {
+            const toast = document.getElementById('toast');
+            toast.textContent = message;
+            toast.className = `toast ${isSuccess ? 'success' : 'error'} show`;
+            
+            setTimeout(() => {
+                toast.className = 'toast';
+            }, 3000);
+        }
+
+        async function copyToClipboard(text) {
+            try {
+                await navigator.clipboard.writeText(text);
+                showToast('複製成功！ ' + text);
+            } catch (err) {
+                showToast('複製失敗！請檢查瀏覽器權限', false);
+                console.error('複製失敗：', err);
+            }
+        }
+
+        function createEmojiElement(emoji, code) {
+            const div = document.createElement('div');
+            div.className = 'emoji-item';
+            div.innerHTML = `
+                <span class="emoji">${emoji}</span>
+                <span class="code">${code}</span>
+            `;
+            div.onclick = () => copyToClipboard(emoji);
+            return div;
+        }
+
+        function createKaomojiElement(kaomoji) {
+            const div = document.createElement('div');
+            div.className = 'kaomoji-item';
+            div.innerHTML = `<span class="kaomoji">${kaomoji}</span>`;
+            div.onclick = () => copyToClipboard(kaomoji);
+            return div;
+        }
+
+        function createCategorySection(category, emojis) {
+            const section = document.createElement('div');
+            section.innerHTML = `<h3 class="category-title">${category}</h3>`;
+            const container = document.createElement('div');
+            container.className = 'kaomoji-container';
+            
+            emojis.forEach(kaomoji => {
+                const element = createKaomojiElement(kaomoji);
+                container.appendChild(element);
+            });
+            
+            section.appendChild(container);
+            return section;
+        }
+
+        function generateKaomojis() {
+            const container = document.getElementById('kaomojiContainer');
+            for (let category in kaomojis) {
+                const section = createCategorySection(category, kaomojis[category]);
+                container.appendChild(section);
+            }
+        }
+
+        function generateEmojis() {
+            const container = document.getElementById('emojiContainer');
+            
+            emojiRanges.forEach(([start, end]) => {
+                for (let i = start; i <= end; i++) {
+                    try {
+                        const emoji = String.fromCodePoint(i);
+                        const code = 'U+' + i.toString(16).toUpperCase();
+                        const element = createEmojiElement(emoji, code);
+                        container.appendChild(element);
+                    } catch (e) {
+                        continue;
+                    }
+                }
+            });
+        }
+
+        window.onload = () => {
+            generateKaomojis();
+            generateEmojis();
+        };
+    </script>
+</body>
+</html>
